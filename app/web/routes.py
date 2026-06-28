@@ -90,11 +90,9 @@ async def api_import_url(req: ImportRequest):
     try:
         channels = await m3u_handler.import_from_url(req.url)
         if not channels:
-            return {"status": "ok", "imported": 0, "warning": "URL enthielt keine gültigen M3U-Einträge. Prüfe die URL oder lade die M3U-Datei manuell hoch."}
-        for ch in channels:
-            m3u_handler.CHANNELS[ch.id] = ch
-        m3u_handler.save_channels()
-        return {"status": "ok", "imported": len(channels)}
+            return {"status": "ok", "imported": 0, "total": len(m3u_handler.CHANNELS), "warning": "URL enthielt keine gültigen M3U-Einträge. Prüfe die URL oder lade die M3U-Datei manuell hoch."}
+        added = m3u_handler.merge_channels(channels, replace=req.replace)
+        return {"status": "ok", "imported": added, "total": len(m3u_handler.CHANNELS)}
     except httpx.ConnectError:
         return {"error": "Fritzbox nicht erreichbar. Prüfe die IP-Adresse."}, 400
     except httpx.TimeoutException:
@@ -128,10 +126,8 @@ async def api_scan_fritzbox(ip: str = Form(...)):
                 if resp.status_code == 200:
                     channels = m3u_handler.parse_m3u(resp.text)
                     if channels:
-                        for ch in channels:
-                            m3u_handler.CHANNELS[ch.id] = ch
-                        m3u_handler.save_channels()
-                        return {"status": "ok", "url": url, "imported": len(channels)}
+                        added = m3u_handler.merge_channels(channels, replace=False)
+                        return {"status": "ok", "url": url, "imported": added, "total": len(m3u_handler.CHANNELS)}
                     # URL gefunden, aber kein gültiges M3U
                     return {"status": "ok", "url": url, "imported": 0}
             except Exception:
@@ -140,15 +136,13 @@ async def api_scan_fritzbox(ip: str = Form(...)):
 
 
 @router.post("/api/import/upload")
-async def api_import_upload(file: UploadFile = File(...)):
+async def api_import_upload(file: UploadFile = File(...), replace: bool = Form(False)):
     try:
         content = await file.read()
         text = content.decode("utf-8")
         channels = m3u_handler.import_from_text(text)
-        for ch in channels:
-            m3u_handler.CHANNELS[ch.id] = ch
-        m3u_handler.save_channels()
-        return {"status": "ok", "imported": len(channels)}
+        added = m3u_handler.merge_channels(channels, replace=replace)
+        return {"status": "ok", "imported": added, "total": len(m3u_handler.CHANNELS)}
     except Exception as e:
         return {"error": str(e)}, 400
 

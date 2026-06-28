@@ -138,14 +138,20 @@
       <div class="flex-grow">
         <label for="m3uUrl">Von URL importieren (Fritzbox M3U-URL)</label>
         <div class="flex">
-          <input type="text" id="m3uUrl" placeholder="http://192.168.2.1:49000/m3u" class="flex-grow">
+          <input type="text" id="m3uUrl" placeholder="http://192.168.2.1/dvb/m3u/tvhd.m3u" class="flex-grow">
           <button onclick="importUrl()">Importieren</button>
         </div>
+        <label style="font-size:12px;margin-top:4px;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="replaceUrl"> Vorhandene Kanäle ersetzen
+        </label>
       </div>
       <div style="display:flex;align-items:flex-end;">
         <div>
           <label>&nbsp;</label>
           <input type="file" id="m3uFile" accept=".m3u,.txt,.m3u8" onchange="importFile()" style="padding:8px;font-size:13px;width:auto;">
+          <label style="font-size:12px;margin-top:4px;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="replaceFile"> Vorhandene Kanäle ersetzen
+          </label>
         </div>
       </div>
     </div>
@@ -323,11 +329,12 @@ function showWarning(msg, type) {
 async function importUrl() {
   const url = document.getElementById("m3uUrl").value.trim();
   if (!url) { toast("URL eingeben", "error"); return; }
+  const replace = document.getElementById("replaceUrl").checked;
   try {
-    const r = await api("POST", "/api/import/url", { url });
+    const r = await api("POST", "/api/import/url", { url, replace });
     if (r.warning) showWarning(r.warning, "error");
     const n = (r && r.imported) || 0;
-    toast(n + " Kanäle importiert");
+    toast(n + " Kanäle importiert (gesamt: " + (r.total || n) + ")");
     loadChannels();
   } catch (e) {
     toast("Import fehlgeschlagen: " + e.message, "error");
@@ -366,14 +373,16 @@ async function importFile() {
   const fileInput = document.getElementById("m3uFile");
   const file = fileInput.files[0];
   if (!file) return;
+  const replace = document.getElementById("replaceFile").checked;
   const fd = new FormData();
   fd.append("file", file);
+  fd.append("replace", String(replace));
   try {
     const r = await api("POST", "/api/import/upload", fd);
     if (r.warning) showWarning(r.warning, "error");
     const n = (r && r.imported) || 0;
-    if (n === 0) { toast("Keine Kanäle gefunden", "error"); return; }
-    toast(n + " Kanäle importiert");
+    if (n === 0) { toast("Keine neuen Kanäle gefunden (Duplikate ignoriert)", "error"); return; }
+    toast(n + " Kanäle importiert (gesamt: " + (r.total || n) + ")");
     loadChannels();
   } catch (e) {
     toast("Import fehlgeschlagen: " + e.message, "error");

@@ -86,6 +86,25 @@ def import_from_text(content: str) -> list[Channel]:
     return parse_m3u(content)
 
 
+def merge_channels(new_channels: list[Channel], replace: bool = False) -> int:
+    global CHANNELS
+    if replace:
+        CHANNELS = {}
+    existing_urls = {ch.rtsp_url for ch in CHANNELS.values()}
+    next_id = max((int(c.id) for c in CHANNELS.values()), default=0) + 1
+    added = 0
+    for ch in new_channels:
+        if ch.rtsp_url in existing_urls:
+            continue
+        ch.id = str(next_id)
+        CHANNELS[ch.id] = ch
+        existing_urls.add(ch.rtsp_url)
+        next_id += 1
+        added += 1
+    save_channels()
+    return added
+
+
 def update_channel(channel_id: str, updates: dict) -> Channel | None:
     ch = CHANNELS.get(channel_id)
     if not ch:

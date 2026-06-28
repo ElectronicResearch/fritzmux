@@ -23,6 +23,7 @@ class ChannelUpdate(BaseModel):
 
 class ImportRequest(BaseModel):
     url: Optional[str] = None
+    replace: bool = False
 
 
 class EpgSource(BaseModel):
