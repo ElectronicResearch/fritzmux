@@ -44,7 +44,10 @@ async def fetch_all():
     global _epg_data, _last_fetch
 
     async with _fetch_lock:
-        if _last_fetch and (datetime.now() - _last_fetch).seconds < EPG_FETCH_INTERVAL:
+        if not EPG_SOURCES:
+            logger.info("No EPG sources configured")
+            _epg_data = []
+            _last_fetch = None
             return
 
         all_events = []
