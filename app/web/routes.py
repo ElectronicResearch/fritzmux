@@ -345,12 +345,82 @@ async def stream_channel(channel_id: str):
     if stream_manager.active_stream_count() >= 4:
         return Response(status_code=503, content="All tuners busy")
 
+    # Starte ffmpeg und warte auf erste Daten (max 10s)
+    import asyncio
+    process = await stream_manager.start_ffmpeg(ch.rtsp_url, channel_id)
+    if process is None:
+        return Response(status_code=503, content="Stream unavailable")
+
+    first_chunk = None
+    for attempt in range(40):  # 40 × 250ms = 10s timeout
+        await asyncio.sleep(0.25)
+        if process.returncode is not None:
+            return Response(status_code=502, content=f"ffmpeg exited with code {process.returncode}")
+        try:
+            assert process.stdout is not None
+            first_chunk = await asyncio.wait_for(process.stdout.read(8192), timeout=0.25)
+            if first_chunk:
+                break
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            continue
+
+    if not first_chunk:
+        await stream_manager.stop_ffmpeg(channel_id)
+        return Response(status_code=502, content="ffmpeg produced no data after 10s")
+
+    async def gen():
+        yield first_chunk
+        try:
+            while True:
+                chunk = await process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+        except (asyncio.CancelledError, GeneratorExit):
+            raise
+        except Exception:
+            logger.exception("Stream error for channel %s", channel_id)
+        finally:
+            await stream_manager.stop_ffmpeg(channel_id)
+
     return StreamingResponse(
-        stream_manager.stream_generator(ch.rtsp_url, channel_id),
+        gen(),
         media_type="video/MP2T",
         headers={
-            "Transfer-Encoding": "chunked",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
     )
+
+
+@router.post("/api/stream/test")
+async def api_stream_test(channel_id: str = Form(...)):
+    ch = m3u_handler.CHANNELS.get(channel_id)
+    if not ch:
+        return {"error": "Channel not found"}
+    import subprocess, sys
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-rtsp_transport", "tcp",
+        "-rtsp_flags", "prefer_tcp",
+        "-i", ch.rtsp_url,
+        "-c", "copy",
+        "-f", "null",
+        "-",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=10,
+    )
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        rc = proc.returncode
+        err_text = stderr.decode("utf-8", errors="replace")[-1000:]
+        if rc == 0:
+            return {"status": "ok", "message": "ffmpeg connected successfully"}
+        else:
+            return {"status": "error", "message": err_text}
+    except asyncio.TimeoutError:
+        proc.kill()
+        return {"status": "error", "message": "Timeout (10s) – Fritzbox antwortet nicht"}
+    except Exception as e:
+        return {"error": str(e)}
