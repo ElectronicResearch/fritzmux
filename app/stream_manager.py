@@ -27,7 +27,7 @@ async def start_ffmpeg(rtsp_url: str, channel_id: str) -> Optional[asyncio.subpr
 
         process = await asyncio.create_subprocess_exec(
             DEFAULT_FFMPEG_PATH,
-            "-rtsp_transport", "tcp",
+            "-rtsp_transport", "udp",
             "-timeout", "5000000",
             "-i", rtsp_url,
             "-c", "copy",
