@@ -55,7 +55,11 @@ async def api_channels():
 async def api_m3u(request: Request):
     base_url = str(request.base_url).rstrip("/")
     content = m3u_handler.generate_m3u(base_url)
-    return PlainTextResponse(content, media_type="audio/x-mpegurl")
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="audio/x-mpegurl; charset=utf-8",
+        headers={"Content-Disposition": 'inline; filename="fritzmux.m3u"'},
+    )
 
 
 @router.get("/api/epg.xml")
@@ -64,7 +68,11 @@ async def api_epg(request: Request):
         ch.tvg_id: ch.tvg_name for ch in m3u_handler.CHANNELS.values()
     }
     xml = epg_manager.generate_xmltv(channel_map)
-    return PlainTextResponse(xml, media_type="application/xml")
+    return Response(
+        content=xml.encode("utf-8"),
+        media_type="application/xml; charset=utf-8",
+        headers={"Content-Disposition": 'inline; filename="fritzmux.xml"'},
+    )
 
 
 @router.get("/api/epg/channels")
