@@ -56,9 +56,8 @@ async def api_m3u(request: Request):
     base_url = str(request.base_url).rstrip("/")
     content = m3u_handler.generate_m3u(base_url)
     return Response(
-        content=content.encode("utf-8"),
-        media_type="audio/x-mpegurl; charset=utf-8",
-        headers={"Content-Disposition": 'inline; filename="fritzmux.m3u"'},
+        content=content,
+        media_type="application/x-mpegurl",
     )
 
 

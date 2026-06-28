@@ -126,6 +126,6 @@ def generate_m3u(base_url: str = "http://localhost:8181") -> str:
             attrs += f' tvg-logo="{logo_url}"'
         if ch.group_title:
             attrs += f' group-title="{ch.group_title}"'
-        lines.append(f'#EXTINF:-1 {attrs},{ch.title}')
+        lines.append(f'#EXTINF:0 {attrs},{ch.title}')
         lines.append(f'{base_url}/stream/{ch.id}')
     return "\n".join(lines) + "\n"
