@@ -62,20 +62,28 @@ async def fetch_all():
 
 
 _channel_icons: dict[str, str] = {}
+_epg_channels: dict[str, str] = {}
 
 
 def get_channel_icons() -> dict[str, str]:
     return dict(_channel_icons)
 
 
+def get_epg_channels() -> list[dict]:
+    return [{"id": k, "name": v} for k, v in _epg_channels.items()]
+
+
 def _parse_xmltv(xml: str) -> list[dict]:
-    global _channel_icons
+    global _channel_icons, _epg_channels
     events = []
     import xml.etree.ElementTree as ET
     try:
         root = ET.fromstring(xml.encode("utf-8") if isinstance(xml, str) else xml)
         for channel_el in root.findall("channel"):
             ch_id = channel_el.get("id", "")
+            dn_el = channel_el.find("display-name")
+            dn = dn_el.text if dn_el is not None and dn_el.text else ch_id
+            _epg_channels[ch_id] = dn
             icon_el = channel_el.find("icon")
             if icon_el is not None and icon_el.get("src"):
                 _channel_icons[ch_id] = icon_el.get("src")

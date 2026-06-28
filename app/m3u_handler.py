@@ -10,13 +10,15 @@ from app.models import Channel
 
 
 EXTINF_RE = re.compile(
-    r'#EXTINF:-1\s*'
+    r'#EXTINF:\-?\d+\s*'
     r'(?:tvg-id="(?P<tvg_id>[^"]*)")?\s*'
     r'(?:tvg-name="(?P<tvg_name>[^"]*)")?\s*'
     r'(?:tvg-logo="(?P<tvg_logo>[^"]*)")?\s*'
     r'(?:group-title="(?P<group_title>[^"]*)")?\s*'
     r',(?P<title>.+)'
 )
+
+EXTINF_SIMPLE_RE = re.compile(r'#EXTINF:\-?\d+\s*,?(?P<title>.+)')
 
 CHANNELS: dict[str, Channel] = {}
 
@@ -47,7 +49,7 @@ def parse_m3u(content: str, base_url: str = "") -> list[Channel]:
             i += 1
             continue
         if line.startswith("#EXTINF"):
-            m = EXTINF_RE.match(line)
+            m = EXTINF_RE.match(line) or EXTINF_SIMPLE_RE.match(line)
             if m:
                 i += 1
                 if i < len(lines):

@@ -2,6 +2,7 @@ services:
   fritzmux:
     build: .
     container_name: fritzmux
+    network_mode: host
     ports:
       - "8181:8181"
     volumes:

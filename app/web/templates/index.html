@@ -231,10 +231,6 @@
       <input type="text" id="editTitle">
     </div>
     <div class="form-group">
-      <label>tvg-id</label>
-      <input type="text" id="editTvgId">
-    </div>
-    <div class="form-group">
       <label>tvg-name</label>
       <input type="text" id="editTvgName">
     </div>
@@ -243,7 +239,19 @@
       <input type="text" id="editGroup">
     </div>
     <div class="form-group">
-      <label>Logo URL</label>
+      <label>tvg-id (EPG Zuordnung)</label>
+      <div class="flex">
+        <input type="text" id="editTvgId" class="flex-grow" placeholder="z.B. 101" style="font-family:monospace;">
+        <button class="secondary" id="epgSearchBtn" onclick="fetchEpgId()" title="EPG Channel-ID suchen" style="width:auto;padding:10px;">EPG suchen</button>
+      </div>
+      <div id="epgChannelList" style="margin-top:4px;max-height:150px;overflow-y:auto;display:none;background:var(--surface2);border-radius:6px;padding:4px;"></div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text2);display:flex;justify-content:space-between;">
+        <span id="epgCountLabel"></span>
+        <a id="epgDebug" style="color:var(--accent);cursor:pointer;" onclick="showAllEpgChannels()">Alle EPG-Channels</a>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Logo URL oder Upload</label>
       <div class="flex">
         <input type="text" id="editLogo" class="flex-grow" placeholder="https://example.com/logo.png">
         <button class="secondary" onclick="fetchEpgLogo()" title="Logo aus EPG übernehmen" style="width:auto;padding:10px;">EPG</button>
@@ -252,6 +260,7 @@
         <img id="editLogoPreview" class="logo-img" style="display:none;">
         <span id="editLogoPreviewPlaceholder" class="logo-placeholder">?</span>
         <span id="editLogoStatus" style="font-size:12px;color:var(--text2);"></span>
+        <input type="file" id="editLogoUpload" accept="image/*" style="font-size:12px;padding:4px 8px;width:auto;" onchange="uploadLogo()">
       </div>
     </div>
     <div class="form-group">
@@ -657,6 +666,76 @@ async function fetchEpgLogo() {
     toast("EPG Fehler: " + e.message, "error");
   }
 }
+
+let _epgChannels = [];
+
+async function loadEpgChannels() {
+  try {
+    _epgChannels = await api("GET", "/api/epg/channels");
+    document.getElementById("epgCountLabel").textContent = _epgChannels.length + " EPG-Channels verfügbar";
+  } catch (_) {}
+}
+
+async function fetchEpgId() {
+  const input = document.getElementById("editTvgId");
+  const container = document.getElementById("epgChannelList");
+  const q = input.value.trim().toLowerCase();
+  let matches = _epgChannels;
+  if (q) {
+    matches = matches.filter(c => c.id.includes(q) || c.name.toLowerCase().includes(q));
+  }
+  if (!matches.length) {
+    container.style.display = "block";
+    container.innerHTML = '<div style="padding:8px;color:var(--text2);font-size:13px;">Keine EPG-Channels gefunden</div>';
+    return;
+  }
+  container.style.display = "block";
+  container.innerHTML = matches.slice(0, 30).map(c =>
+    `<div style="padding:6px 8px;cursor:pointer;border-radius:4px;font-size:13px;display:flex;justify-content:space-between;align-items:center;"
+          onmouseover="this.style.background='var(--border)'"
+          onmouseout="this.style.background=''"
+          onclick="pickEpgChannel('${c.id}')">
+       <span><strong>${c.id}</strong> – ${c.name}</span>
+       <span style="color:var(--accent);font-size:11px;">+ übernehmen</span>
+     </div>`
+  ).join("");
+}
+
+function showAllEpgChannels() {
+  document.getElementById("editTvgId").value = "";
+  fetchEpgId();
+}
+
+function pickEpgChannel(id) {
+  document.getElementById("editTvgId").value = id;
+  document.getElementById("epgChannelList").style.display = "none";
+  toast("EPG-ID " + id + " zugewiesen");
+}
+
+async function uploadLogo() {
+  const input = document.getElementById("editLogoUpload");
+  const file = input.files[0];
+  if (!file) return;
+  const id = document.getElementById("editId").value;
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await api("POST", "/api/logo/" + id + "/upload", fd);
+    document.getElementById("editLogo").value = r.logo;
+    updateLogoPreview(r.logo);
+    document.getElementById("editLogoStatus").textContent = "Logo hochgeladen: " + file.name;
+    toast("Logo hochgeladen");
+  } catch (e) {
+    toast("Upload fehlgeschlagen: " + e.message, "error");
+  }
+}
+
+// Load EPG channels on modal open
+const _origOpen = openEditModal;
+openEditModal = function(id) {
+  loadEpgChannels();
+  _origOpen(id);
+};
 
 // Close modal on overlay click
 document.getElementById("editModal").addEventListener("click", function(e) {

@@ -67,6 +67,11 @@ async def api_epg(request: Request):
     return PlainTextResponse(xml, media_type="application/xml")
 
 
+@router.get("/api/epg/channels")
+async def api_epg_channels():
+    return epg_manager.get_epg_channels()
+
+
 @router.get("/api/epg/refresh")
 async def api_epg_refresh():
     await epg_manager.fetch_all()
@@ -155,6 +160,13 @@ async def api_logo(channel_id: str):
     cache_file = logo_dir / f"{channel_id}"
     meta_file = logo_dir / f"{channel_id}.meta"
 
+    # Serve uploaded logo
+    if ch.tvg_logo == "__uploaded__":
+        if cache_file.exists() and meta_file.exists():
+            media_type = meta_file.read_text().strip()
+            return Response(content=cache_file.read_bytes(), media_type=media_type)
+        return Response(status_code=404, content="Uploaded logo not found")
+
     if cache_file.exists() and meta_file.exists():
         media_type = meta_file.read_text().strip()
         return Response(content=cache_file.read_bytes(), media_type=media_type)
@@ -171,6 +183,27 @@ async def api_logo(channel_id: str):
     except Exception as e:
         logger.warning("Failed to fetch logo for %s: %s", channel_id, e)
         return Response(status_code=502, content="Logo fetch failed")
+
+
+@router.post("/api/logo/{channel_id}/upload")
+async def api_logo_upload(channel_id: str, file: UploadFile = File(...)):
+    ch = m3u_handler.CHANNELS.get(channel_id)
+    if not ch:
+        return {"error": "not found"}, 404
+
+    logo_dir = DATA_DIR / "logos"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = logo_dir / f"{channel_id}"
+    meta_file = logo_dir / f"{channel_id}.meta"
+
+    data = await file.read()
+    media_type = file.content_type or "image/png"
+    cache_file.write_bytes(data)
+    meta_file.write_text(media_type)
+
+    ch.tvg_logo = "__uploaded__"
+    m3u_handler.save_channels()
+    return {"status": "ok", "logo": f"/api/logo/{channel_id}"}
 
 
 @router.get("/stream/{channel_id}")
