@@ -27,9 +27,13 @@ async def start_ffmpeg(rtsp_url: str, channel_id: str) -> Optional[asyncio.subpr
         process = await asyncio.create_subprocess_exec(
             DEFAULT_FFMPEG_PATH,
             "-rtsp_transport", "tcp",
+            "-rtsp_flags", "prefer_tcp",
+            "-re",
+            "-fflags", "+genpts",
             "-i", rtsp_url,
             "-c", "copy",
             "-f", "mpegts",
+            "-mpegts_flags", "+resend_headers",
             "-",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -71,17 +75,24 @@ async def stream_generator(rtsp_url: str, channel_id: str):
     if process is None:
         return
 
-    # Log stderr in background (in case of errors)
     async def _log_stderr():
         assert process.stderr is not None
         err = await process.stderr.read()
         if err:
-            logger.warning("ffmpeg stderr for %s:\n%s", channel_id, err.decode("utf-8", errors="replace")[:2000])
+            text = err.decode("utf-8", errors="replace")[:2000]
+            for line in text.splitlines():
+                logger.warning("ffmpeg[%s]: %s", channel_id, line)
 
     stderr_task = asyncio.create_task(_log_stderr())
 
     try:
         assert process.stdout is not None
+        # Kurz warten ob ffmpeg sofort stirbt
+        await asyncio.sleep(0.5)
+        if process.returncode is not None and process.returncode != 0:
+            logger.error("ffmpeg died immediately for %s (rc=%d)", channel_id, process.returncode)
+            return
+
         while True:
             chunk = await process.stdout.read(8192)
             if not chunk:
