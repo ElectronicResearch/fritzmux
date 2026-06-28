@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Optional
 
 DATA_DIR = Path("/app/data")
 CHANNELS_FILE = DATA_DIR / "channels.json"
 EPG_CACHE_DIR = DATA_DIR / "epg"
+EPG_SOURCES_FILE = DATA_DIR / "epg_sources.json"
 
 DEFAULT_FFMPEG_PATH = "ffmpeg"
 MAX_STREAMS = 4

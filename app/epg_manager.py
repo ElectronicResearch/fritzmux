@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import json
 import logging
 from datetime import datetime, timedelta
@@ -7,7 +8,7 @@ from typing import Optional
 
 import httpx
 
-from app.config import EPG_CACHE_DIR, EPG_FETCH_INTERVAL
+from app.config import EPG_CACHE_DIR, EPG_FETCH_INTERVAL, EPG_SOURCES_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,23 @@ _fetch_lock = asyncio.Lock()
 
 def add_source(name: str, url: str):
     EPG_SOURCES.append({"name": name, "url": url, "enabled": True})
+    save_sources()
 
 
-def load_sources(path: Path):
-    if path.exists():
-        data = json.loads(path.read_text())
+def remove_source(name: str):
+    global EPG_SOURCES
+    EPG_SOURCES = [s for s in EPG_SOURCES if s["name"] != name]
+    save_sources()
+
+
+def save_sources():
+    EPG_SOURCES_FILE.write_text(json.dumps(EPG_SOURCES, indent=2))
+
+
+def load_sources():
+    if EPG_SOURCES_FILE.exists():
+        data = json.loads(EPG_SOURCES_FILE.read_text())
+        EPG_SOURCES.clear()
         EPG_SOURCES.extend(data)
 
 
@@ -42,7 +55,7 @@ async def fetch_all():
                 try:
                     resp = await client.get(src["url"])
                     resp.raise_for_status()
-                    text = resp.text
+                    text = _decode_response(resp, src["url"])
                     cache_file = EPG_CACHE_DIR / f"{src['name']}.xml"
                     cache_file.write_text(text)
                     events = _parse_xmltv(text)
@@ -52,13 +65,20 @@ async def fetch_all():
                     logger.warning("Failed to fetch EPG from %s: %s", src["name"], e)
                     cache_file = EPG_CACHE_DIR / f"{src['name']}.xml"
                     if cache_file.exists():
-                        text = cache_file.read_text()
+                        text = cache_file.read_text(encoding="utf-8")
                         events = _parse_xmltv(text)
                         all_events.extend(events)
                         logger.info("Loaded %d events from cache for %s", len(events), src["name"])
 
         _epg_data = all_events
         _last_fetch = datetime.now()
+
+
+def _decode_response(resp: httpx.Response, url: str) -> str:
+    ct = resp.headers.get("content-type", "")
+    if "gzip" in ct or url.endswith(".gz"):
+        return gzip.decompress(resp.content).decode("utf-8", errors="replace")
+    return resp.text
 
 
 _channel_icons: dict[str, str] = {}

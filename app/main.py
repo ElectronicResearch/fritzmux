@@ -23,5 +23,7 @@ async def startup():
     logger.info("FritzMux starting up...")
     m3u_handler.load_channels()
     logger.info("Loaded %d channels", len(m3u_handler.CHANNELS))
+    epg_manager.load_sources()
+    logger.info("Loaded %d EPG sources", len(epg_manager.EPG_SOURCES))
     await epg_manager.fetch_all()
     logger.info("Loaded EPG data")

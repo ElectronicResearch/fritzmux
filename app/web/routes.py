@@ -153,6 +153,17 @@ async def api_epg_add_source(name: str = Form(...), url: str = Form(...)):
     return {"status": "ok"}
 
 
+@router.get("/api/epg/sources")
+async def api_epg_list_sources():
+    return epg_manager.EPG_SOURCES
+
+
+@router.delete("/api/epg/source/{name}")
+async def api_epg_remove_source(name: str):
+    epg_manager.remove_source(name)
+    return {"status": "ok"}
+
+
 @router.get("/api/channels/{channel_id}")
 async def api_channel_detail(channel_id: str):
     ch = m3u_handler.CHANNELS.get(channel_id)
