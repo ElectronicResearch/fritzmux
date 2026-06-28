@@ -55,9 +55,11 @@ async def api_channels():
 async def api_m3u(request: Request):
     base_url = str(request.base_url).rstrip("/")
     content = m3u_handler.generate_m3u(base_url)
+    logger.info("M3U generated: %d bytes, starts with: %s", len(content), content[:120].replace("\n", "\\n"))
     return Response(
-        content=content,
-        media_type="application/x-mpegurl",
+        content=content.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="channels.m3u"'},
     )
 
 
