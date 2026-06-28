@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FritzMux</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --text: #e1e4eb;
+    --text2: #8b8fa3;
+    --accent: #4f8cff;
+    --accent-hover: #6ba0ff;
+    --green: #34d399;
+    --red: #f87171;
+    --border: #2a2d3a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  .status-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text2);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    display: inline-block;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .flex { display: flex; gap: 12px; flex-wrap: wrap; }
+  .flex-grow { flex: 1; min-width: 200px; }
+  input, select, button {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 14px; border-radius: 8px;
+    font-size: 14px; outline: none; width: 100%;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #fff; font-weight: 500;
+    border: none; cursor: pointer; width: auto;
+    padding: 10px 20px; white-space: nowrap;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.danger { background: var(--red); }
+  button.danger:hover { background: #ef4444; }
+  button.secondary { background: var(--surface2); color: var(--text); }
+  button.secondary:hover { background: var(--border); }
+  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .url-display {
+    display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    background: var(--surface2); padding: 10px 14px; border-radius: 8px;
+    font-size: 13px; font-family: monospace; word-break: break-all;
+  }
+  .url-display .label { color: var(--text2); font-family: sans-serif; }
+  .url-display .copy-btn {
+    background: none; border: 1px solid var(--border); color: var(--text2);
+    padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer;
+    flex-shrink: 0; width: auto;
+  }
+  .url-display .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text2); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:hover { background: var(--surface2); }
+  .empty { color: var(--text2); text-align: center; padding: 40px; }
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 12px 20px; border-radius: 8px; font-size: 14px;
+    opacity: 0; transition: opacity 0.3s; z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: var(--red); }
+  .toast.success { border-color: var(--green); }
+  label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+  .mt-2 { margin-top: 12px; }
+  .mb-2 { margin-bottom: 12px; }
+  .inline { display: inline-flex; align-items: center; gap: 8px; }
+  .logo-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; background: var(--surface2); }
+  .logo-placeholder { width: 32px; height: 32px; border-radius: 4px; background: var(--surface2); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text2); }
+  .btn-icon { background: none; border: 1px solid var(--border); color: var(--text2); padding: 4px 8px; cursor: pointer; border-radius: 6px; font-size: 14px; width: auto; }
+  .btn-icon:hover { border-color: var(--accent); color: var(--text); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 18px; margin-bottom: 16px; }
+  .modal .form-group { margin-bottom: 12px; }
+  .modal .form-group label { font-size: 12px; margin-bottom: 2px; }
+  .modal .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fritz<span>Mux</span></h1>
+  <div class="status-badge">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Läuft</span>
+    <span id="activeCount">0</span>/<span id="maxCount">4</span> Streams
+    · <span id="channelCount">0</span> Kanäle
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Import -->
+  <div class="card">
+    <h2>M3U Import</h2>
+    <div class="flex">
+      <div class="flex-grow">
+        <label for="m3uUrl">Von URL importieren (Fritzbox oder andere Quelle)</label>
+        <div class="flex">
+          <input type="text" id="m3uUrl" placeholder="http://192.168.178.1:49000/m3u" class="flex-grow">
+          <button onclick="importUrl()">Importieren</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <div>
+          <label>&nbsp;</label>
+          <input type="file" id="m3uFile" accept=".m3u,.txt" onchange="importFile()" style="padding:8px;font-size:13px;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- URLs -->
+  <div class="card">
+    <h2>Playlist &amp; EPG URLs für IPTV Player</h2>
+    <div class="url-display">
+      <span class="label">M3U:</span>
+      <span id="m3uUrlDisplay">-</span>
+      <button class="copy-btn" onclick="copyUrl('m3uUrlDisplay')">Kopieren</button>
+    </div>
+    <div class="url-display">
+      <span class="label">EPG:</span>
+      <span id="epgUrlDisplay">-</span>
+      <button class="copy-btn" onclick="copyUrl('epgUrlDisplay')">Kopieren</button>
+    </div>
+  </div>
+
+  <!-- EPG Quellen -->
+  <div class="card">
+    <h2>EPG Quellen</h2>
+    <div class="flex">
+      <div class="flex-grow">
+        <label for="epgName">Name</label>
+        <input type="text" id="epgName" placeholder="z.B. Fritzbox-EPG">
+      </div>
+      <div class="flex-grow">
+        <label for="epgUrl">URL (XMLTV)</label>
+        <input type="text" id="epgUrl" placeholder="http://192.168.178.1:49000/epg">
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button onclick="addEpgSource()">Hinzufügen</button>
+      </div>
+    </div>
+    <div class="mt-2">
+      <button class="secondary" onclick="refreshEpg()">EPG jetzt aktualisieren</button>
+      <span id="epgStatus" style="color:var(--text2);font-size:13px;margin-left:8px;"></span>
+    </div>
+  </div>
+
+  <!-- Channel Liste -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;">Kanäle</h2>
+      <div class="btn-group">
+        <button class="secondary" onclick="refreshM3u()">M3U neu laden</button>
+        <button class="danger" onclick="clearChannels()">Alle löschen</button>
+      </div>
+    </div>
+    <div id="channelList">
+      <div class="empty">Keine Kanäle importiert. M3U oben importieren.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Kanal bearbeiten</h3>
+    <input type="hidden" id="editId">
+    <div class="form-group">
+      <label>Titel</label>
+      <input type="text" id="editTitle">
+    </div>
+    <div class="form-group">
+      <label>tvg-id</label>
+      <input type="text" id="editTvgId">
+    </div>
+    <div class="form-group">
+      <label>tvg-name</label>
+      <input type="text" id="editTvgName">
+    </div>
+    <div class="form-group">
+      <label>Gruppe</label>
+      <input type="text" id="editGroup">
+    </div>
+    <div class="form-group">
+      <label>Logo URL</label>
+      <div class="flex">
+        <input type="text" id="editLogo" class="flex-grow" placeholder="https://example.com/logo.png">
+        <button class="secondary" onclick="fetchEpgLogo()" title="Logo aus EPG übernehmen" style="width:auto;padding:10px;">EPG</button>
+      </div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:8px;">
+        <img id="editLogoPreview" class="logo-img" style="display:none;">
+        <span id="editLogoPreviewPlaceholder" class="logo-placeholder">?</span>
+        <span id="editLogoStatus" style="font-size:12px;color:var(--text2);"></span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>RTSP URL</label>
+      <input type="text" id="editRtsp">
+    </div>
+    <div class="form-actions">
+      <button class="secondary" onclick="closeEditModal()">Abbrechen</button>
+      <button onclick="saveChannel()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = window.location.origin;
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body instanceof FormData) {
+    opts.body = body;
+  } else if (body) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(BASE + path, opts);
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(err || r.statusText);
+  }
+  return r.json ? r.json() : r.text();
+}
+
+function toast(msg, type = "success") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast " + type + " show";
+  setTimeout(() => el.classList.remove("show"), 3000);
+}
+
+async function importUrl() {
+  const url = document.getElementById("m3uUrl").value.trim();
+  if (!url) { toast("URL eingeben", "error"); return; }
+  try {
+    const r = await api("POST", "/api/import/url", { url });
+    toast(r.imported + " Kanäle importiert");
+    loadChannels();
+  } catch (e) {
+    toast("Import fehlgeschlagen: " + e.message, "error");
+  }
+}
+
+async function importFile() {
+  const fileInput = document.getElementById("m3uFile");
+  const file = fileInput.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await api("POST", "/api/import/upload", fd);
+    toast(r.imported + " Kanäle importiert");
+    loadChannels();
+  } catch (e) {
+    toast("Import fehlgeschlagen: " + e.message, "error");
+  }
+}
+
+async function loadChannels() {
+  try {
+    const channels = await api("GET", "/api/channels");
+    const status = await api("GET", "/api/status");
+    renderChannels(channels, status);
+    updateUrls();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderChannels(channels, status) {
+  document.getElementById("channelCount").textContent = channels.length;
+  document.getElementById("activeCount").textContent = status.active_streams;
+  document.getElementById("maxCount").textContent = status.max_streams;
+
+  const container = document.getElementById("channelList");
+  if (channels.length === 0) {
+    container.innerHTML = '<div class="empty">Keine Kanäle importiert.</div>';
+    return;
+  }
+  let html = `<table><thead><tr>
+    <th>Logo</th><th>Name</th><th>Gruppe</th><th>tvg-id</th><th>Aktion</th>
+  </tr></thead><tbody>`;
+  for (const ch of channels) {
+    const logoHtml = ch.tvg_logo
+      ? `<img src="/api/logo/${ch.id}" class="logo-img" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="logo-placeholder" style="display:none;">?</span>`
+      : `<span class="logo-placeholder">?</span>`;
+    html += `<tr>
+      <td>${logoHtml}</td>
+      <td><strong>${ch.title}</strong></td>
+      <td>${ch.group_title || "-"}</td>
+      <td>${ch.tvg_id}</td>
+      <td>
+        <button class="btn-icon" onclick="openEditModal('${ch.id}')" title="Bearbeiten">✎</button>
+        <button class="danger" style="padding:4px 10px;font-size:12px;" onclick="deleteChannel('${ch.id}')">Löschen</button>
+      </td>
+    </tr>`;
+  }
+  html += "</tbody></table>";
+  container.innerHTML = html;
+}
+
+function updateUrls() {
+  const origin = window.location.origin;
+  document.getElementById("m3uUrlDisplay").textContent = origin + "/api/channels.m3u";
+  document.getElementById("epgUrlDisplay").textContent = origin + "/api/epg.xml";
+}
+
+function copyUrl(elementId) {
+  const text = document.getElementById(elementId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    toast("URL kopiert");
+  }).catch(() => {
+    const input = document.createElement("input");
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    document.body.removeChild(input);
+    toast("URL kopiert");
+  });
+}
+
+async function deleteChannel(id) {
+  try {
+    await api("DELETE", "/api/channels/" + id);
+    toast("Kanal gelöscht");
+    loadChannels();
+  } catch (e) {
+    toast("Fehler: " + e.message, "error");
+  }
+}
+
+async function clearChannels() {
+  if (!confirm("Alle Kanäle löschen?")) return;
+  try {
+    await api("POST", "/api/channels/clear");
+    toast("Alle Kanäle gelöscht");
+    loadChannels();
+  } catch (e) {
+    toast("Fehler: " + e.message, "error");
+  }
+}
+
+async function addEpgSource() {
+  const name = document.getElementById("epgName").value.trim();
+  const url = document.getElementById("epgUrl").value.trim();
+  if (!name || !url) { toast("Name und URL eingeben", "error"); return; }
+  const fd = new FormData();
+  fd.append("name", name);
+  fd.append("url", url);
+  try {
+    await api("POST", "/api/epg/source", fd);
+    toast("EPG Quelle hinzugefügt");
+    document.getElementById("epgName").value = "";
+    document.getElementById("epgUrl").value = "";
+  } catch (e) {
+    toast("Fehler: " + e.message, "error");
+  }
+}
+
+async function refreshEpg() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "Aktualisiere...";
+  try {
+    const r = await api("GET", "/api/epg/refresh");
+    document.getElementById("epgStatus").textContent = r.events + " Events geladen";
+    toast("EPG aktualisiert (" + r.events + " Events)");
+  } catch (e) {
+    toast("EPG Fehler: " + e.message, "error");
+  }
+  btn.disabled = false;
+  btn.textContent = "EPG jetzt aktualisieren";
+}
+
+async function refreshM3u() {
+  try {
+    const r = await api("GET", "/api/channels");
+    const status = await api("GET", "/api/status");
+    renderChannels(r, status);
+    toast("Ansicht aktualisiert");
+  } catch (e) {
+    toast("Fehler: " + e.message, "error");
+  }
+}
+
+function openEditModal(id) {
+  const ch = window._channels.find(c => c.id === id);
+  if (!ch) return;
+  document.getElementById("editId").value = ch.id;
+  document.getElementById("editTitle").value = ch.title;
+  document.getElementById("editTvgId").value = ch.tvg_id;
+  document.getElementById("editTvgName").value = ch.tvg_name;
+  document.getElementById("editGroup").value = ch.group_title || "";
+  document.getElementById("editLogo").value = ch.tvg_logo || "";
+  document.getElementById("editRtsp").value = ch.rtsp_url;
+  updateLogoPreview(ch.tvg_logo);
+  document.getElementById("editModal").classList.add("active");
+}
+
+function closeEditModal() {
+  document.getElementById("editModal").classList.remove("active");
+}
+
+function updateLogoPreview(url) {
+  const img = document.getElementById("editLogoPreview");
+  const placeholder = document.getElementById("editLogoPreviewPlaceholder");
+  if (url && url.trim()) {
+    img.src = url;
+    img.style.display = "inline-block";
+    placeholder.style.display = "none";
+    document.getElementById("editLogoStatus").textContent = "";
+  } else {
+    img.style.display = "none";
+    placeholder.style.display = "inline-flex";
+    document.getElementById("editLogoStatus").textContent = "Kein Logo";
+  }
+}
+
+document.getElementById("editLogo").addEventListener("input", function() {
+  updateLogoPreview(this.value);
+  if (this.value.trim()) {
+    document.getElementById("editLogoStatus").textContent = "Vorschau von externer URL";
+  }
+});
+
+async function saveChannel() {
+  const id = document.getElementById("editId").value;
+  const body = {
+    title: document.getElementById("editTitle").value.trim() || undefined,
+    tvg_id: document.getElementById("editTvgId").value.trim() || undefined,
+    tvg_name: document.getElementById("editTvgName").value.trim() || undefined,
+    group_title: document.getElementById("editGroup").value.trim() || undefined,
+    tvg_logo: document.getElementById("editLogo").value.trim() || undefined,
+    rtsp_url: document.getElementById("editRtsp").value.trim() || undefined,
+  };
+  try {
+    await api("PUT", "/api/channels/" + id, body);
+    toast("Kanal gespeichert");
+    closeEditModal();
+    loadChannels();
+  } catch (e) {
+    toast("Fehler: " + e.message, "error");
+  }
+}
+
+async function fetchEpgLogo() {
+  const id = document.getElementById("editId").value;
+  const channels = window._channels;
+  const ch = channels.find(c => c.id === id);
+  if (!ch) return;
+  try {
+    const epgData = await api("GET", "/api/epg/refresh");
+    const icons = {};
+    const updated = await api("GET", "/api/channels");
+    const updatedCh = updated.find(c => c.id === id);
+    if (updatedCh && updatedCh.tvg_logo) {
+      document.getElementById("editLogo").value = updatedCh.tvg_logo;
+      updateLogoPreview(updatedCh.tvg_logo);
+      document.getElementById("editLogoStatus").textContent = "Logo aus EPG übernommen";
+      toast("Logo aus EPG übernommen");
+    } else {
+      document.getElementById("editLogoStatus").textContent = "Kein EPG-Logo für diesen Kanal gefunden";
+    }
+    window._channels = updated;
+  } catch (e) {
+    toast("EPG Fehler: " + e.message, "error");
+  }
+}
+
+// Close modal on overlay click
+document.getElementById("editModal").addEventListener("click", function(e) {
+  if (e.target === this) closeEditModal();
+});
+
+// Store channel data for modal
+const origLoadChannels = loadChannels;
+loadChannels = function() {
+  origLoadChannels.call(this);
+};
+const _origRender = renderChannels;
+renderChannels = function(channels, status) {
+  window._channels = channels;
+  _origRender(channels, status);
+};
+
+loadChannels();
+</script>
+</body>
+</html>

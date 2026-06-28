@@ -1,0 +1,9 @@
+services:
+  fritzmux:
+    build: .
+    container_name: fritzmux
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

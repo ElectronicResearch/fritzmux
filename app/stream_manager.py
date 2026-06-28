@@ -1,0 +1,86 @@
+import asyncio
+import logging
+import signal
+from typing import Optional
+
+from app.config import DEFAULT_FFMPEG_PATH, MAX_STREAMS
+
+logger = logging.getLogger(__name__)
+
+_active_streams: dict[str, asyncio.subprocess.Process] = {}
+_stream_lock = asyncio.Lock()
+
+
+async def start_ffmpeg(rtsp_url: str, channel_id: str) -> Optional[asyncio.subprocess.Process]:
+    async with _stream_lock:
+        if channel_id in _active_streams:
+            proc = _active_streams[channel_id]
+            if proc.returncode is None:
+                return proc
+            del _active_streams[channel_id]
+
+        if len(_active_streams) >= MAX_STREAMS:
+            logger.warning("Max streams (%d) reached, rejecting %s", MAX_STREAMS, channel_id)
+            return None
+
+        logger.info("Starting ffmpeg for channel %s: %s", channel_id, rtsp_url)
+        process = await asyncio.create_subprocess_exec(
+            DEFAULT_FFMPEG_PATH,
+            "-rtsp_transport", "tcp",
+            "-i", rtsp_url,
+            "-c", "copy",
+            "-f", "mpegts",
+            "-",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            preexec_fn=lambda: signal.signal(signal.SIGPIPE, signal.SIG_DFL),
+        )
+        _active_streams[channel_id] = process
+        return process
+
+
+async def stop_ffmpeg(channel_id: str):
+    async with _stream_lock:
+        process = _active_streams.pop(channel_id, None)
+        if process and process.returncode is None:
+            logger.info("Stopping ffmpeg for channel %s", channel_id)
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                process.kill()
+                try:
+                    await process.wait()
+                except ProcessLookupError:
+                    pass
+
+
+def active_stream_count() -> int:
+    return sum(1 for p in _active_streams.values() if p.returncode is None)
+
+
+async def cleanup_stale():
+    async with _stream_lock:
+        stale = [cid for cid, p in _active_streams.items() if p.returncode is not None]
+        for cid in stale:
+            del _active_streams[cid]
+
+
+async def stream_generator(rtsp_url: str, channel_id: str):
+    process = await start_ffmpeg(rtsp_url, channel_id)
+    if process is None:
+        return
+
+    try:
+        assert process.stdout is not None
+        while True:
+            chunk = await process.stdout.read(8192)
+            if not chunk:
+                break
+            yield chunk
+    except (asyncio.CancelledError, GeneratorExit):
+        pass
+    except Exception:
+        logger.exception("Stream error for channel %s", channel_id)
+    finally:
+        await stop_ffmpeg(channel_id)
