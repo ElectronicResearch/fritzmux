@@ -24,21 +24,31 @@ async def start_ffmpeg(rtsp_url: str, channel_id: str) -> Optional[asyncio.subpr
             return None
 
         logger.info("Starting ffmpeg for channel %s: %s", channel_id, rtsp_url)
+
         process = await asyncio.create_subprocess_exec(
             DEFAULT_FFMPEG_PATH,
             "-rtsp_transport", "tcp",
-            "-rtsp_flags", "prefer_tcp",
-            "-re",
-            "-fflags", "+genpts",
+            "-timeout", "5000000",
             "-i", rtsp_url,
             "-c", "copy",
             "-f", "mpegts",
-            "-mpegts_flags", "+resend_headers",
             "-",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             preexec_fn=lambda: signal.signal(signal.SIGPIPE, signal.SIG_DFL),
         )
+
+        async def _log_stderr():
+            try:
+                err = await asyncio.wait_for(process.stderr.read(), timeout=10)
+            except asyncio.TimeoutError:
+                return
+            if err:
+                text = err.decode("utf-8", errors="replace")[:2000]
+                for line in text.splitlines():
+                    logger.warning("ffmpeg[%s]: %s", channel_id, line)
+
+        asyncio.create_task(_log_stderr())
         _active_streams[channel_id] = process
         return process
 

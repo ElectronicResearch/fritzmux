@@ -353,10 +353,18 @@ async def stream_channel(channel_id: str):
         return Response(status_code=503, content="Stream unavailable")
 
     first_chunk = None
+    stderr_log = ""
     for attempt in range(40):  # 40 × 250ms = 10s timeout
         await asyncio.sleep(0.25)
         if process.returncode is not None:
-            return Response(status_code=502, content=f"ffmpeg exited with code {process.returncode}")
+            if process.stderr:
+                try:
+                    err = await asyncio.wait_for(process.stderr.read(), timeout=1)
+                    stderr_log = err.decode("utf-8", errors="replace")[:1000]
+                except Exception:
+                    pass
+            logger.warning("ffmpeg exit %d for %s: %s", process.returncode, channel_id, stderr_log[:200])
+            return Response(status_code=502, content=f"ffmpeg exited with code {process.returncode}: {stderr_log[:200]}")
         try:
             assert process.stdout is not None
             first_chunk = await asyncio.wait_for(process.stdout.read(8192), timeout=0.25)
