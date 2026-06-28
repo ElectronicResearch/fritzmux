@@ -19,7 +19,10 @@ Fritzbox generiert M3U-Playlisten mit `rtsp://` URLs – moderne IPTV Player wie
 docker compose up -d
 ```
 
-http://localhost:8181 öffnen → M3U importieren → M3U/EPG-URLs in TiviMate eintragen.
+`http://<docker-host-ip>:8181` im Browser öffnen → M3U importieren → M3U/EPG-URLs in TiviMate eintragen.
+
+> **Hinweis:** `network_mode: host` wird verwendet, damit der Container auf Geräte im Heimnetz (Fritzbox) zugreifen kann.
+> Die Fritzbox-IP im Browser eingeben – Standard ist meist `192.168.178.1` oder `192.168.0.1`.
 
 ## Architektur
 
