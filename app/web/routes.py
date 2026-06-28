@@ -108,8 +108,16 @@ async def api_import_url(req: ImportRequest):
 async def api_scan_fritzbox(ip: str = Form(...)):
     base = ip.rstrip("/")
     urls_to_try = [
+        # Fritzbox DVB-C Senderliste (nach "Senderliste erzeugen" im WebUI)
+        f"http://{base}/dvb/m3u/tvhd.m3u",
+        f"http://{base}/dvb/m3u/tvsd.m3u",
+        f"http://{base}/dvb/m3u/radio.m3u",
+        f"http://{base}/dvb/m3u/tvall.m3u",
+        # TR-064 / UPnP Port
         f"http://{base}:49000/m3u",
         f"http://{base}:49000/m3u.m3u",
+        f"http://{base}:49000/tonline.m3u",
+        # Legacy WEBCM
         f"http://{base}/cgi-bin/webcm?getpage=../html/de/internet/tvapp.m3u",
         f"http://{base}/internet/tvapp.m3u",
     ]
