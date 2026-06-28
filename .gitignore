@@ -1,1 +1,4 @@
-data/logos/*
+data/channels.json
+data/epg_sources.json
+data/epg/
+data/logos/
