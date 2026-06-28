@@ -1,1 +1,47 @@
-[]
+[
+  {
+    "id": "1",
+    "tvg_id": "1",
+    "tvg_name": "Das Erste HD",
+    "tvg_logo": "https://example.com/ard.png",
+    "group_title": "TV",
+    "title": "Das Erste HD",
+    "rtsp_url": "rtsp://192.168.178.1:554/stream=TV-1"
+  },
+  {
+    "id": "2",
+    "tvg_id": "2",
+    "tvg_name": "ZDF HD",
+    "tvg_logo": "",
+    "group_title": "TV",
+    "title": "ZDF HD",
+    "rtsp_url": "rtsp://192.168.178.1:554/stream=TV-2"
+  },
+  {
+    "id": "3",
+    "tvg_id": "3",
+    "tvg_name": "RTL HD",
+    "tvg_logo": "",
+    "group_title": "TV",
+    "title": "RTL HD",
+    "rtsp_url": "rtsp://192.168.178.1:554/stream=TV-3"
+  },
+  {
+    "id": "4",
+    "tvg_id": "4",
+    "tvg_name": "SAT.1 HD",
+    "tvg_logo": "",
+    "group_title": "TV",
+    "title": "SAT.1 HD",
+    "rtsp_url": "rtsp://192.168.178.1:554/stream=TV-4"
+  },
+  {
+    "id": "5",
+    "tvg_id": "5",
+    "tvg_name": "ProSieben HD",
+    "tvg_logo": "",
+    "group_title": "TV",
+    "title": "ProSieben HD",
+    "rtsp_url": "rtsp://192.168.178.1:554/stream=TV-5"
+  }
+]

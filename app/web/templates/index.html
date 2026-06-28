@@ -262,11 +262,11 @@ async function api(method, path, body) {
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(BASE + path, opts);
+  const text = await r.text();
   if (!r.ok) {
-    const err = await r.text();
-    throw new Error(err || r.statusText);
+    throw new Error(text || r.statusText);
   }
-  return r.json ? r.json() : r.text();
+  try { return JSON.parse(text); } catch (_) { return text; }
 }
 
 function toast(msg, type = "success") {
@@ -315,6 +315,7 @@ async function loadChannels() {
 }
 
 function renderChannels(channels, status) {
+  window._channels = channels;
   document.getElementById("channelCount").textContent = channels.length;
   document.getElementById("activeCount").textContent = status.active_streams;
   document.getElementById("maxCount").textContent = status.max_streams;
@@ -519,17 +520,6 @@ async function fetchEpgLogo() {
 document.getElementById("editModal").addEventListener("click", function(e) {
   if (e.target === this) closeEditModal();
 });
-
-// Store channel data for modal
-const origLoadChannels = loadChannels;
-loadChannels = function() {
-  origLoadChannels.call(this);
-};
-const _origRender = renderChannels;
-renderChannels = function(channels, status) {
-  window._channels = channels;
-  _origRender(channels, status);
-};
 
 loadChannels();
 </script>
