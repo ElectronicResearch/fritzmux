@@ -202,7 +202,9 @@
     <div id="epgSourceList" style="margin-top:8px;"></div>
     <div class="mt-2">
       <button class="secondary" id="refreshEpgBtn" onclick="refreshEpg(this)">EPG jetzt aktualisieren</button>
+      <button class="secondary" onclick="fetchAvmLogos()">AVM Logos laden</button>
       <span id="epgStatus" style="color:var(--text2);font-size:13px;margin-left:8px;"></span>
+      <span id="avmLogoStatus" style="color:var(--text2);font-size:13px;margin-left:8px;"></span>
     </div>
   </div>
 
@@ -630,6 +632,20 @@ async function refreshEpg(btn) {
   }
   btn.disabled = false;
   btn.textContent = "EPG jetzt aktualisieren";
+}
+
+async function fetchAvmLogos() {
+  const status = document.getElementById("avmLogoStatus");
+  status.textContent = "Lade Logos...";
+  try {
+    const r = await api("POST", "/api/logos/avm");
+    status.textContent = r.found + " von " + r.total + " Logos gefunden";
+    toast(r.found + " Logos von AVM geladen");
+    loadChannels();
+  } catch (e) {
+    status.textContent = "Fehler";
+    toast("AVM Logos: " + e.message, "error");
+  }
 }
 
 async function refreshM3u() {

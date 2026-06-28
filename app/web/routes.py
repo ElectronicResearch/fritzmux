@@ -252,6 +252,82 @@ async def api_logo_upload(channel_id: str, file: UploadFile = File(...)):
     return {"status": "ok", "logo": f"/api/logo/{channel_id}"}
 
 
+@router.post("/api/logos/avm")
+async def api_fetch_avm_logos():
+    AVM_BASE = "https://download.avm.de/tv/logos/"
+    logo_dir = DATA_DIR / "logos"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Hole verfügbare Logos von AVM
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.get(AVM_BASE)
+            resp.raise_for_status()
+            import re
+            avm_logos = set(re.findall(r'href="([^"]+\.png)"', resp.text))
+    except Exception as e:
+        return {"error": f"AVM-Repository nicht erreichbar: {e}"}, 502
+
+    if not avm_logos:
+        return {"error": "Keine Logos im AVM-Repository gefunden"}, 404
+
+    def normalize(name: str) -> str:
+        n = name.lower().strip()
+        n = n.replace("ü", "ue").replace("ö", "oe").replace("ä", "ae").replace("ß", "ss")
+        n = re.sub(r"[^a-z0-9]+", "_", n).strip("_")
+        # Entferne häufige Suffixe
+        for suffix in ["_hd", "_sd", "_de"]:
+            if n.endswith(suffix):
+                n = n[:-len(suffix)]
+        return n
+
+    # Baue Mapping: normalized_name -> original filename
+    logo_map = {}
+    for fn in avm_logos:
+        base = fn.replace(".png", "")
+        # auch mit _hd, _sd versionen
+        logo_map[base] = fn
+        for suffix in ["_hd", "_sd"]:
+            if base.endswith(suffix):
+                logo_map[base[:-len(suffix)]] = fn
+
+    found = 0
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        for ch in m3u_handler.CHANNELS.values():
+            for name_candidate in [ch.tvg_name, ch.title, ch.tvg_id]:
+                if not name_candidate:
+                    continue
+                norm = normalize(name_candidate)
+                fn = logo_map.get(norm)
+                if not fn:
+                    # Versuche mit _hd suffix
+                    fn = logo_map.get(f"{norm}_hd") or logo_map.get(f"{norm}_sd")
+                if fn:
+                    cache_file = logo_dir / ch.id
+                    meta_file = logo_dir / f"{ch.id}.meta"
+                    if cache_file.exists():
+                        # bereits vorhanden
+                        if ch.tvg_logo != "__uploaded__":
+                            ch.tvg_logo = "__uploaded__"
+                            found += 1
+                        break
+                    try:
+                        url = AVM_BASE + fn
+                        resp = await client.get(url)
+                        resp.raise_for_status()
+                        cache_file.write_bytes(resp.content)
+                        meta_file.write_text(resp.headers.get("content-type", "image/png"))
+                        ch.tvg_logo = "__uploaded__"
+                        found += 1
+                        break
+                    except Exception:
+                        continue
+
+    if found:
+        m3u_handler.save_channels()
+    return {"status": "ok", "found": found, "total": len(m3u_handler.CHANNELS)}
+
+
 @router.get("/stream/{channel_id}")
 async def stream_channel(channel_id: str):
     ch = m3u_handler.CHANNELS.get(channel_id)
