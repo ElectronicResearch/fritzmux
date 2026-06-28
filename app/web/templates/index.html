@@ -136,19 +136,30 @@
     <h2>M3U Import</h2>
     <div class="flex">
       <div class="flex-grow">
-        <label for="m3uUrl">Von URL importieren (Fritzbox oder andere Quelle)</label>
+        <label for="m3uUrl">Von URL importieren (Fritzbox M3U-URL)</label>
         <div class="flex">
-          <input type="text" id="m3uUrl" placeholder="http://<fritzbox-ip>:49000/m3u (z.B. 192.168.178.1 oder 192.168.0.1)" class="flex-grow">
+          <input type="text" id="m3uUrl" placeholder="http://192.168.2.1:49000/m3u" class="flex-grow">
           <button onclick="importUrl()">Importieren</button>
         </div>
       </div>
       <div style="display:flex;align-items:flex-end;">
         <div>
           <label>&nbsp;</label>
-          <input type="file" id="m3uFile" accept=".m3u,.txt" onchange="importFile()" style="padding:8px;font-size:13px;">
+          <input type="file" id="m3uFile" accept=".m3u,.txt,.m3u8" onchange="importFile()" style="padding:8px;font-size:13px;width:auto;">
         </div>
       </div>
     </div>
+    <div class="flex" style="margin-top:10px;">
+      <div class="flex-grow">
+        <label for="scanIp">Fritzbox automatisch scannen (M3U-URL suchen)</label>
+        <div class="flex">
+          <input type="text" id="scanIp" placeholder="192.168.2.1" style="flex:0 0 160px;">
+          <button class="secondary" onclick="scanFritzbox()">Fritzbox scannen</button>
+          <span id="scanStatus" style="font-size:13px;color:var(--text2);align-self:center;"></span>
+        </div>
+      </div>
+    </div>
+    <div id="importWarning" style="display:none;margin-top:8px;padding:10px 14px;background:#2d1b1b;border:1px solid var(--red);border-radius:8px;font-size:13px;"></div>
   </div>
 
   <!-- URLs -->
@@ -300,16 +311,48 @@ function toast(msg, type = "success") {
   setTimeout(() => el.classList.remove("show"), 3000);
 }
 
+function showWarning(msg, type) {
+  const el = document.getElementById("importWarning");
+  el.textContent = msg;
+  el.style.display = "block";
+  el.style.background = type === "error" ? "#2d1b1b" : "#1b2d1b";
+  el.style.borderColor = type === "error" ? "var(--red)" : "var(--green)";
+  setTimeout(() => { el.style.display = "none"; }, 8000);
+}
+
 async function importUrl() {
   const url = document.getElementById("m3uUrl").value.trim();
   if (!url) { toast("URL eingeben", "error"); return; }
   try {
     const r = await api("POST", "/api/import/url", { url });
+    if (r.warning) showWarning(r.warning, "error");
     toast(r.imported + " Kanäle importiert");
     loadChannels();
   } catch (e) {
     toast("Import fehlgeschlagen: " + e.message, "error");
   }
+}
+
+async function scanFritzbox() {
+  const ip = document.getElementById("scanIp").value.trim();
+  if (!ip) { toast("Fritzbox-IP eingeben", "error"); return; }
+  const status = document.getElementById("scanStatus");
+  status.textContent = "Scanne...";
+  const btn = event.target;
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append("ip", ip);
+    const r = await api("POST", "/api/scan/fritzbox", fd);
+    status.textContent = "✓ M3U gefunden: " + r.url;
+    document.getElementById("m3uUrl").value = r.url;
+    toast(r.imported + " Kanäle gefunden und importiert!");
+    loadChannels();
+  } catch (e) {
+    status.textContent = "✗ Keine M3U gefunden";
+    showWarning("Fritzbox-Scan: " + e.message + ". Lade die M3U-Datei manuell hoch.", "error");
+  }
+  btn.disabled = false;
 }
 
 async function importFile() {
@@ -320,6 +363,8 @@ async function importFile() {
   fd.append("file", file);
   try {
     const r = await api("POST", "/api/import/upload", fd);
+    if (r.warning) showWarning(r.warning, "error");
+    if (r.imported === 0) { toast("Keine Kanäle gefunden", "error"); return; }
     toast(r.imported + " Kanäle importiert");
     loadChannels();
   } catch (e) {

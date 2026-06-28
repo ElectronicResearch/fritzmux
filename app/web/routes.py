@@ -89,13 +89,43 @@ async def api_import_url(req: ImportRequest):
         return {"error": "URL is required"}, 400
     try:
         channels = await m3u_handler.import_from_url(req.url)
+        if not channels:
+            return {"status": "ok", "imported": 0, "warning": "URL enthielt keine gültigen M3U-Einträge. Prüfe die URL oder lade die M3U-Datei manuell hoch."}
         for ch in channels:
             m3u_handler.CHANNELS[ch.id] = ch
         m3u_handler.save_channels()
         return {"status": "ok", "imported": len(channels)}
+    except httpx.ConnectError:
+        return {"error": "Fritzbox nicht erreichbar. Prüfe die IP-Adresse."}, 400
+    except httpx.TimeoutException:
+        return {"error": "Zeitüberschreitung – Fritzbox antwortet nicht."}, 400
     except Exception as e:
         logger.exception("Import failed")
         return {"error": str(e)}, 400
+
+
+@router.post("/api/scan/fritzbox")
+async def api_scan_fritzbox(ip: str = Form(...)):
+    base = ip.rstrip("/")
+    urls_to_try = [
+        f"http://{base}:49000/m3u",
+        f"http://{base}:49000/m3u.m3u",
+        f"http://{base}/cgi-bin/webcm?getpage=../html/de/internet/tvapp.m3u",
+    ]
+    async with httpx.AsyncClient(timeout=8) as client:
+        for url in urls_to_try:
+            try:
+                resp = await client.get(url, follow_redirects=True)
+                if resp.status_code == 200:
+                    channels = m3u_handler.parse_m3u(resp.text)
+                    if channels:
+                        for ch in channels:
+                            m3u_handler.CHANNELS[ch.id] = ch
+                        m3u_handler.save_channels()
+                        return {"status": "ok", "url": url, "imported": len(channels)}
+            except Exception:
+                continue
+    return {"status": "not_found", "message": "Keine M3U-URL auf der Fritzbox gefunden. Lade die M3U-Datei manuell hoch."}, 404
 
 
 @router.post("/api/import/upload")
