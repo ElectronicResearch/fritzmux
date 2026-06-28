@@ -190,13 +190,28 @@
 
   <!-- Channel Liste -->
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h2 style="margin:0;">Kanäle</h2>
       <div class="btn-group">
-        <button class="secondary" onclick="refreshM3u()">M3U neu laden</button>
+        <button class="secondary" onclick="refreshM3u()">Aktualisieren</button>
         <button class="danger" onclick="clearChannels()">Alle löschen</button>
       </div>
     </div>
+
+    <!-- Search + Batch Bar -->
+    <div class="flex" style="margin-bottom:12px;">
+      <div class="flex-grow">
+        <input type="text" id="channelSearch" placeholder="Suchen..." oninput="renderFiltered()" style="font-size:13px;padding:8px 12px;">
+      </div>
+      <div>
+        <select id="groupFilter" onchange="renderFiltered()" style="font-size:13px;padding:8px 12px;width:auto;">
+          <option value="">Alle Gruppen</option>
+        </select>
+      </div>
+      <button class="secondary" id="batchDeleteBtn" disabled onclick="deleteSelected()" style="font-size:13px;padding:8px 16px;">Auswahl löschen</button>
+      <button class="secondary" id="batchKeepBtn" disabled onclick="keepSelected()" style="font-size:13px;padding:8px 16px;">Nur Auswahl behalten</button>
+    </div>
+
     <div id="channelList">
       <div class="empty">Keine Kanäle importiert. M3U oben importieren.</div>
     </div>
@@ -314,6 +329,8 @@ async function loadChannels() {
   }
 }
 
+let _selected = new Set();
+
 function renderChannels(channels, status) {
   window._channels = channels;
   document.getElementById("channelCount").textContent = channels.length;
@@ -322,29 +339,118 @@ function renderChannels(channels, status) {
 
   const container = document.getElementById("channelList");
   if (channels.length === 0) {
-    container.innerHTML = '<div class="empty">Keine Kanäle importiert.</div>';
+    container.innerHTML = '<div class="empty">Keine Kanäle importiert. M3U oben importieren.</div>';
+    document.getElementById("groupFilter").innerHTML = '<option value="">Alle Gruppen</option>';
     return;
   }
+
+  // Build group filter
+  const groups = [...new Set(channels.map(c => c.group_title).filter(Boolean).sort())];
+  const sel = document.getElementById("groupFilter");
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Alle Gruppen</option>' + groups.map(g => `<option value="${g}">${g}</option>`).join("");
+  sel.value = currentVal || "";
+
+  renderFiltered();
+}
+
+function getFiltered() {
+  const search = document.getElementById("channelSearch").value.toLowerCase().trim();
+  const group = document.getElementById("groupFilter").value;
+  return window._channels.filter(ch => {
+    if (search && !ch.title.toLowerCase().includes(search) && !ch.tvg_name.toLowerCase().includes(search)) return false;
+    if (group && ch.group_title !== group) return false;
+    return true;
+  });
+}
+
+function renderFiltered() {
+  const filtered = getFiltered();
+  const container = document.getElementById("channelList");
+  const allSelected = filtered.length > 0 && filtered.every(ch => _selected.has(ch.id));
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty">Keine Kanäle entsprechen dem Filter.</div>';
+    updateBatchButtons();
+    return;
+  }
+
+  // Group by group_title
+  const groups = {};
+  for (const ch of filtered) {
+    const g = ch.group_title || "Ohne Gruppe";
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(ch);
+  }
+
   let html = `<table><thead><tr>
-    <th>Logo</th><th>Name</th><th>Gruppe</th><th>tvg-id</th><th>Aktion</th>
+    <th style="width:32px;"><input type="checkbox" onchange="toggleSelectAll(this.checked)" ${allSelected ? 'checked' : ''}></th>
+    <th style="width:40px;">Logo</th>
+    <th>Name</th>
+    <th>tvg-id</th>
+    <th style="width:100px;">Aktion</th>
   </tr></thead><tbody>`;
-  for (const ch of channels) {
-    const logoHtml = ch.tvg_logo
-      ? `<img src="/api/logo/${ch.id}" class="logo-img" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="logo-placeholder" style="display:none;">?</span>`
-      : `<span class="logo-placeholder">?</span>`;
-    html += `<tr>
-      <td>${logoHtml}</td>
-      <td><strong>${ch.title}</strong></td>
-      <td>${ch.group_title || "-"}</td>
-      <td>${ch.tvg_id}</td>
-      <td>
-        <button class="btn-icon" onclick="openEditModal('${ch.id}')" title="Bearbeiten">✎</button>
-        <button class="danger" style="padding:4px 10px;font-size:12px;" onclick="deleteChannel('${ch.id}')">Löschen</button>
+
+  for (const [groupName, chs] of Object.entries(groups)) {
+    const groupSel = chs.every(ch => _selected.has(ch.id));
+    const groupSome = chs.some(ch => _selected.has(ch.id));
+    html += `<tr style="background:var(--surface2);">
+      <td><input type="checkbox" onchange="toggleGroup('${groupName.replace(/'/g, "\\'")}', this.checked)" ${groupSel ? 'checked' : ''}></td>
+      <td colspan="4" style="font-weight:600;font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">
+        ${groupName} (${chs.length})
       </td>
     </tr>`;
+    for (const ch of chs) {
+      const logoHtml = ch.tvg_logo
+        ? `<img src="/api/logo/${ch.id}" class="logo-img" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="logo-placeholder" style="display:none;">?</span>`
+        : `<span class="logo-placeholder">?</span>`;
+      const checked = _selected.has(ch.id) ? 'checked' : '';
+      html += `<tr>
+        <td><input type="checkbox" ${checked} onchange="toggleSelect('${ch.id}', this.checked)"></td>
+        <td>${logoHtml}</td>
+        <td><strong>${ch.title}</strong></td>
+        <td>${ch.tvg_id}</td>
+        <td>
+          <button class="btn-icon" onclick="openEditModal('${ch.id}')" title="Bearbeiten">✎</button>
+          <button class="danger" style="padding:4px 10px;font-size:12px;" onclick="deleteChannel('${ch.id}')">Löschen</button>
+        </td>
+      </tr>`;
+    }
   }
   html += "</tbody></table>";
   container.innerHTML = html;
+  updateBatchButtons();
+}
+
+function toggleSelect(id, checked) {
+  if (checked) _selected.add(id); else _selected.delete(id);
+  updateBatchButtons();
+}
+
+function toggleGroup(groupName, checked) {
+  for (const ch of window._channels) {
+    const g = ch.group_title || "Ohne Gruppe";
+    if (g === groupName) {
+      if (checked) _selected.add(ch.id); else _selected.delete(ch.id);
+    }
+  }
+  renderFiltered();
+}
+
+function toggleSelectAll(checked) {
+  const filtered = getFiltered();
+  for (const ch of filtered) {
+    if (checked) _selected.add(ch.id); else _selected.delete(ch.id);
+  }
+  renderFiltered();
+}
+
+function updateBatchButtons() {
+  const count = _selected.size;
+  document.getElementById("batchDeleteBtn").disabled = count === 0;
+  document.getElementById("batchKeepBtn").disabled = count === 0;
+  document.getElementById("batchDeleteBtn").textContent = count ? `Löschen (${count})` : "Auswahl löschen";
+  document.getElementById("batchKeepBtn").textContent = count ? `Nur behalten (${count})` : "Nur Auswahl behalten";
 }
 
 function updateUrls() {
@@ -371,6 +477,7 @@ function copyUrl(elementId) {
 async function deleteChannel(id) {
   try {
     await api("DELETE", "/api/channels/" + id);
+    _selected.delete(id);
     toast("Kanal gelöscht");
     loadChannels();
   } catch (e) {
@@ -382,6 +489,7 @@ async function clearChannels() {
   if (!confirm("Alle Kanäle löschen?")) return;
   try {
     await api("POST", "/api/channels/clear");
+    _selected.clear();
     toast("Alle Kanäle gelöscht");
     loadChannels();
   } catch (e) {
@@ -430,6 +538,40 @@ async function refreshM3u() {
   } catch (e) {
     toast("Fehler: " + e.message, "error");
   }
+}
+
+async function deleteSelected() {
+  const ids = [..._selected];
+  if (!ids.length) return;
+  if (!confirm(ids.length + " markierte Kanäle löschen?")) return;
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      await api("DELETE", "/api/channels/" + id);
+      _selected.delete(id);
+      ok++;
+    } catch (e) { console.error(e); }
+  }
+  toast(ok + " Kanäle gelöscht");
+  loadChannels();
+}
+
+async function keepSelected() {
+  const ids = new Set(_selected);
+  const all = window._channels.map(c => c.id);
+  const toDelete = all.filter(id => !ids.has(id));
+  if (!toDelete.length) { toast("Nichts zu löschen"); return; }
+  if (!confirm(toDelete.length + " nicht markierte Kanäle löschen? Nur " + ids.size + " bleiben erhalten.")) return;
+  let ok = 0;
+  for (const id of toDelete) {
+    try {
+      await api("DELETE", "/api/channels/" + id);
+      ok++;
+    } catch (e) { console.error(e); }
+  }
+  _selected.clear();
+  toast(ok + " Kanäle gelöscht, " + ids.size + " behalten");
+  loadChannels();
 }
 
 function openEditModal(id) {
