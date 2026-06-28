@@ -32,7 +32,7 @@ async def start_ffmpeg(rtsp_url: str, channel_id: str) -> Optional[asyncio.subpr
             "-f", "mpegts",
             "-",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
             preexec_fn=lambda: signal.signal(signal.SIGPIPE, signal.SIG_DFL),
         )
         _active_streams[channel_id] = process
@@ -71,6 +71,15 @@ async def stream_generator(rtsp_url: str, channel_id: str):
     if process is None:
         return
 
+    # Log stderr in background (in case of errors)
+    async def _log_stderr():
+        assert process.stderr is not None
+        err = await process.stderr.read()
+        if err:
+            logger.warning("ffmpeg stderr for %s:\n%s", channel_id, err.decode("utf-8", errors="replace")[:2000])
+
+    stderr_task = asyncio.create_task(_log_stderr())
+
     try:
         assert process.stdout is not None
         while True:
@@ -84,3 +93,4 @@ async def stream_generator(rtsp_url: str, channel_id: str):
         logger.exception("Stream error for channel %s", channel_id)
     finally:
         await stop_ffmpeg(channel_id)
+        await stderr_task
