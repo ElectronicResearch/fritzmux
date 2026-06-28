@@ -52,9 +52,12 @@ def parse_m3u(content: str, base_url: str = "") -> list[Channel]:
             m = EXTINF_RE.match(line) or EXTINF_SIMPLE_RE.match(line)
             if m:
                 i += 1
+                # überspringe Kommentarzeilen (z.B. #EXTVLCOPT) zwischen EXTINF und URL
+                while i < len(lines) and lines[i].strip().startswith("#"):
+                    i += 1
                 if i < len(lines):
                     url = lines[i].strip()
-                    if url and not url.startswith("#"):
+                    if url:
                         data = m.groupdict()
                         tvg_id = data.get("tvg_id") or str(idx)
                         tvg_name = data.get("tvg_name") or data["title"]

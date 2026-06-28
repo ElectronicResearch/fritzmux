@@ -344,10 +344,11 @@ async function scanFritzbox(btn) {
     const fd = new FormData();
     fd.append("ip", ip);
     const r = await api("POST", "/api/scan/fritzbox", fd);
-    const imported = r.imported || 0;
+    const imported = (r && r.imported) || 0;
     if (imported > 0) {
-      status.textContent = "✓ M3U gefunden: " + r.url;
-      document.getElementById("m3uUrl").value = r.url;
+      const url = r.url || ip;
+      status.textContent = "✓ M3U gefunden: " + url;
+      document.getElementById("m3uUrl").value = url;
       toast(imported + " Kanäle gefunden und importiert!");
       loadChannels();
     } else {
