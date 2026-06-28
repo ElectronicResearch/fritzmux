@@ -154,7 +154,7 @@
         <label for="scanIp">Fritzbox automatisch scannen (M3U-URL suchen)</label>
         <div class="flex">
           <input type="text" id="scanIp" placeholder="192.168.2.1" style="flex:0 0 160px;">
-          <button class="secondary" onclick="scanFritzbox()">Fritzbox scannen</button>
+          <button class="secondary" onclick="scanFritzbox(this)">Fritzbox scannen</button>
           <span id="scanStatus" style="font-size:13px;color:var(--text2);align-self:center;"></span>
         </div>
       </div>
@@ -333,21 +333,26 @@ async function importUrl() {
   }
 }
 
-async function scanFritzbox() {
+async function scanFritzbox(btn) {
   const ip = document.getElementById("scanIp").value.trim();
   if (!ip) { toast("Fritzbox-IP eingeben", "error"); return; }
   const status = document.getElementById("scanStatus");
   status.textContent = "Scanne...";
-  const btn = event.target;
   btn.disabled = true;
   try {
     const fd = new FormData();
     fd.append("ip", ip);
     const r = await api("POST", "/api/scan/fritzbox", fd);
-    status.textContent = "✓ M3U gefunden: " + r.url;
-    document.getElementById("m3uUrl").value = r.url;
-    toast(r.imported + " Kanäle gefunden und importiert!");
-    loadChannels();
+    const imported = r.imported || 0;
+    if (imported > 0) {
+      status.textContent = "✓ M3U gefunden: " + r.url;
+      document.getElementById("m3uUrl").value = r.url;
+      toast(imported + " Kanäle gefunden und importiert!");
+      loadChannels();
+    } else {
+      status.textContent = "✗ URL gefunden, aber keine Kanäle";
+      showWarning("Fritzbox hat unter " + r.url + " geantwortet, aber keine gültigen M3U-Einträge geliefert. Lade die M3U-Datei manuell hoch.", "error");
+    }
   } catch (e) {
     status.textContent = "✗ Keine M3U gefunden";
     showWarning("Fritzbox-Scan: " + e.message + ". Lade die M3U-Datei manuell hoch.", "error");

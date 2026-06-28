@@ -111,11 +111,12 @@ async def api_scan_fritzbox(ip: str = Form(...)):
         f"http://{base}:49000/m3u",
         f"http://{base}:49000/m3u.m3u",
         f"http://{base}/cgi-bin/webcm?getpage=../html/de/internet/tvapp.m3u",
+        f"http://{base}/internet/tvapp.m3u",
     ]
-    async with httpx.AsyncClient(timeout=8) as client:
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
         for url in urls_to_try:
             try:
-                resp = await client.get(url, follow_redirects=True)
+                resp = await client.get(url)
                 if resp.status_code == 200:
                     channels = m3u_handler.parse_m3u(resp.text)
                     if channels:
@@ -123,6 +124,8 @@ async def api_scan_fritzbox(ip: str = Form(...)):
                             m3u_handler.CHANNELS[ch.id] = ch
                         m3u_handler.save_channels()
                         return {"status": "ok", "url": url, "imported": len(channels)}
+                    # URL gefunden, aber kein gültiges M3U
+                    return {"status": "ok", "url": url, "imported": 0}
             except Exception:
                 continue
     return {"status": "not_found", "message": "Keine M3U-URL auf der Fritzbox gefunden. Lade die M3U-Datei manuell hoch."}, 404
