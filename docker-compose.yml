@@ -4,5 +4,5 @@ services:
     container_name: fritzmux
     network_mode: host
     volumes:
-      - ./data:/app/data
+      - ../fritzmux_data:/app/data
     restart: unless-stopped
