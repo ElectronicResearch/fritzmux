@@ -2,17 +2,18 @@
 
 **RTSP → HTTP IPTV Relay für AVM Fritzbox** (DVB-C) mit bis zu 4 parallelen Streams, EPG-Unterstützung und Logo-Proxy.
 
-Fritzbox generiert M3U-Playlisten mit `rtsp://` URLs – moderne IPTV Player wie **TiviMate** oder **VLC** können damit nichts anfangen. FritzMux importiert die Playlist, wandelt RTSP-URLs auf HTTP-Streams um, relayt diese on-demand via ffmpeg als MPEG-TS und stellt EPG-Daten als XMLTV bereit.
+Fritzbox generiert M3U-Playlisten mit `rtsp://` URLs – moderne IPTV Player können damit nichts anfangen.
+FritzMux importiert die Playlist, wandelt RTSP-Streams auf HTTP um und stellt EPG-Daten als XMLTV bereit.
 
 ## Features
 
-- **M3U Import** – per Datei-Upload, URL oder Fritzbox-Scan; mehrere Playlisten zusammenführbar (Duplikaterkennung)
-- **On-Demand Streaming** – ffmpeg relayt RTSP → HTTP (stream copy, kein Transcoding), max. 4 parallele Streams
-- **Fritzbox-Scanner** – durchsucht Fritzbox nach M3U-Pfaden (`/dvb/m3u/`, TR-064, Legacy)
-- **EPG Proxy** – mehrere XMLTV-Quellen (Fritzbox intern + extern, auch `.xml.gz`) → gemergte XMLTV
-- **Logo Proxy** – externe Logos werden gecached und lokal ausgeliefert; AVM-Logos per Knopfdruck abrufbar
-- **Web UI** – Kanalverwaltung (editieren, löschen, gruppieren, filtern), EPG-Konfiguration, Logo-Upload
-- **Docker** – einfaches Setup via docker-compose
+- **Fritzbox-Scanner** – durchsucht Fritzbox nach M3U-Pfaden
+- **M3U Import** – per URL, Datei-Upload oder Fritzbox-Scan; mehrere Playlisten zusammenführbar (Duplikaterkennung)
+- **On-Demand Streaming** – ffmpeg relayt RTSP → HTTP (stream copy, max. 4 parallele Streams)
+- **EPG Proxy** – mehrere XMLTV-Quellen (auch `.xml.gz`) → gemergte XMLTV, automatischer Background-Refresh
+- **Logo Proxy** – AVM-Logos per Knopfdruck, externe Logos gecached, Einzel-Upload
+- **Web UI** – Kanalverwaltung (editieren, löschen, gruppieren, EPG-Zuordnung, Logo)
+- **Docker** – Daten liegen außerhalb des Git-Repos, Datenverlust durch `git pull` ausgeschlossen
 
 ## Quickstart
 
@@ -22,14 +23,14 @@ cd fritzmux
 docker compose up -d
 ```
 
-`http://<docker-host-ip>:8181` im Browser → M3U importieren → Playlist/EPG-URLs in TiviMate eintragen.
+`http://<docker-host-ip>:8181` → Fritzbox scannen → Playlist-URL im IPTV Player eintragen.
 
-> **Hinweis:** `network_mode: host` wird verwendet, damit der Container auf Geräte im Heimnetz (Fritzbox) zugreifen kann.
+> **network_mode: host** wird verwendet, damit der Container auf Geräte im Heimnetz zugreifen kann.
 
-## TiviMate Einrichtung
+## IPTV Player Einrichtung
 
-1. **Playlist:** `http://<fritzmux-ip>:8181/api/channels.m3u` als neue Playlist
-2. **EPG:** `http://<fritzmux-ip>:8181/api/epg.xml` als EPG-Quelle
+1. **Playlist:** `http://<fritzmux-ip>:8181/api/channels.m3u`
+2. **EPG:** `http://<fritzmux-ip>:8181/api/epg.xml`
 
 ## Web UI
 
@@ -38,7 +39,7 @@ docker compose up -d
 | Methode | Beschreibung |
 |---|---|
 | **Fritzbox scannen** | Durchsucht Fritzbox nach M3U-Pfaden (`/dvb/m3u/tvhd.m3u`, `/dvb/m3u/tvsd.m3u`, TR-064, Legacy) |
-| **Von URL importieren** | M3U von beliebiger URL (z.B. `http://192.168.2.1/dvb/m3u/tvhd.m3u`) |
+| **Von URL importieren** | M3U von beliebiger URL |
 | **Datei-Upload** | M3U-Datei von Festplatte hochladen (Download aus Fritzbox-Webinterface) |
 
 **Checkbox "Vorhandene Kanäle ersetzen"**: Ohne Haken werden neue Kanäle angehängt (Duplikate erkannt), mit Haken werden alle bisherigen gelöscht.
@@ -122,11 +123,11 @@ services:
     container_name: fritzmux
     network_mode: host
     volumes:
-      - ./data:/app/data
+      - ../fritzmux_data:/app/data
     restart: unless-stopped
 ```
 
-Daten (Kanäle, EPG-Cache, Logos) liegen im Volume `./data`.
+Daten (Kanäle, EPG-Cache, Logos) liegen in `../fritzmux_data/` – außerhalb des Git-Repos und damit sicher vor `git pull` / `git reset`.
 
 ## Development
 
