@@ -301,7 +301,7 @@ async function api(method, path, body) {
   if (!r.ok) {
     throw new Error(text || r.statusText);
   }
-  try { return JSON.parse(text); } catch (_) { return text; }
+  try { return JSON.parse(text); } catch (_) { console.warn("api: invalid JSON", text); return { imported: 0 }; }
 }
 
 function toast(msg, type = "success") {
@@ -326,7 +326,8 @@ async function importUrl() {
   try {
     const r = await api("POST", "/api/import/url", { url });
     if (r.warning) showWarning(r.warning, "error");
-    toast(r.imported + " Kanäle importiert");
+    const n = (r && r.imported) || 0;
+    toast(n + " Kanäle importiert");
     loadChannels();
   } catch (e) {
     toast("Import fehlgeschlagen: " + e.message, "error");
@@ -369,8 +370,9 @@ async function importFile() {
   try {
     const r = await api("POST", "/api/import/upload", fd);
     if (r.warning) showWarning(r.warning, "error");
-    if (r.imported === 0) { toast("Keine Kanäle gefunden", "error"); return; }
-    toast(r.imported + " Kanäle importiert");
+    const n = (r && r.imported) || 0;
+    if (n === 0) { toast("Keine Kanäle gefunden", "error"); return; }
+    toast(n + " Kanäle importiert");
     loadChannels();
   } catch (e) {
     toast("Import fehlgeschlagen: " + e.message, "error");
